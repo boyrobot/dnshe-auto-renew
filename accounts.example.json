@@ -1,0 +1,17 @@
+{
+  "accounts": [
+    {
+      "name": "account-a",
+      "api_key": "YOUR_API_KEY",
+      "api_secret": "YOUR_API_SECRET",
+      "domains": ["abc88.cc.cd", "12366.cc.cd"]
+    },
+    {
+      "name": "account-b",
+      "api_key": "YOUR_API_KEY",
+      "api_secret": "YOUR_API_SECRET",
+      "domains": ["444.cc.cd"],
+      "renew_before_days": 175
+    }
+  ]
+}

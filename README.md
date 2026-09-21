@@ -20,10 +20,10 @@
 
 - https://my.dnshe.com
 
-准备好这两个值，后面会写进账户 JSON：
+准备好这两个值：
 
-- API Key
-- API Secret
+- `DNSHE_API_KEY`
+- `DNSHE_API_SECRET`
 
 ### 第 1 步：用 GitHub Importer 转成私有仓库
 
@@ -38,52 +38,30 @@
 | `Privacy` | 选 `Private` |
 
 3. 点击 `Begin import`，等待导入完成（通常几十秒到几分钟）
-4. 导入完成后，GitHub 会生成一个属于你自己的私有仓库，后续的 Secret 和 workflow 都在这个仓库里设置
+4. 导入完成后，GitHub 会生成一个属于你自己的私有仓库，后续的 Secrets、Variables 和 workflow 都在这个仓库里设置
 
-### 第 2 步：添加 GitHub Secret
+### 第 2 步：添加 GitHub Secrets 和 Variable
 
 进入：
 
 - `Settings -> Secrets and variables -> Actions`
 
-添加 Secret：
+添加 Secrets：
 
-- `DNSHE_ACCOUNTS`
+- `DNSHE_API_KEY`
+- `DNSHE_API_SECRET`
 
-值是一份 JSON，里面可以放多个账户。仓库里的 `accounts.example.json` 是同结构的模板，把占位符换成你自己的凭证即可。
+添加 Variable：
 
-### 第 3 步：配置账户和域名
+- `DNSHE_DOMAINS`
 
-`DNSHE_ACCOUNTS` 示例：
+### 第 3 步：配置域名
 
-```json
-{
-  "accounts": [
-    {
-      "name": "account-a",
-      "api_key": "YOUR_API_KEY",
-      "api_secret": "YOUR_API_SECRET",
-      "domains": ["abc88.cc.cd", "12366.cc.cd"]
-    },
-    {
-      "name": "account-b",
-      "api_key": "YOUR_API_KEY",
-      "api_secret": "YOUR_API_SECRET",
-      "domains": ["444.cc.cd"],
-      "renew_before_days": 175
-    }
-  ]
-}
-```
+`DNSHE_DOMAINS` 一行一个域名：
 
-- `name` 在这份配置里必须唯一，会用作日志前缀和状态键
-- `domains` 全局不能重复，跨账户也不行
-- `renew_before_days` 可选，默认 `175`；写了就会覆盖状态里的旧值
-
-本地调试可以把同一份 JSON 存成文件后运行：
-
-```bash
-python scripts/dnshe_auto_renew.py --config accounts.json --dry-run
+```text
+abc88.cc.cd
+12366.cc.cd
 ```
 
 ### 第 4 步：手动运行一次
@@ -96,17 +74,17 @@ python scripts/dnshe_auto_renew.py --config accounts.json --dry-run
 
 ### 填写格式
 
-每个账户的 `domains` 是一个数组。新增就加一项，删除就去掉一项：
+一行一个域名，新增就加一行，删除就删一行：
 
-```json
-"domains": ["abc88.cc.cd", "12366.cc.cd", "444.cc.cd"]
+```text
+abc88.cc.cd
+12366.cc.cd
+444.cc.cd
 ```
-
-多个 DNSHE 账户就在 `accounts` 里再加一段，每段使用自己的 API 凭证。某个账户失败不会中断其他账户；只要有账户失败，本次运行的退出码为 `1`。
 
 ### 新增域名
 
-只需把新域名追加到对应账户的 `domains`。下一次 workflow 运行时，会自动发现新域名、从 API 读取 `created_at`，自动计算初始到期时间（`created_at + 365` 天），将结果写入 `state/domains-state.json`。不需要手动填注册时间或到期时间。状态按账户嵌套在 `accounts.<name>.domains` 下。如果仓库里还是旧的扁平 `domains` 状态，脚本会按域名匹配进当前配置的账户，已有到期时间不会被重算。
+只需把新域名追加到 `DNSHE_DOMAINS`。下一次 workflow 运行时，会自动发现新域名、从 API 读取 `created_at`，自动计算初始到期时间（`created_at + 365` 天），将结果写入 `state/domains-state.json`。不需要手动填注册时间或到期时间。
 
 ### 为什么不用手填到期时间
 
@@ -118,23 +96,16 @@ python scripts/dnshe_auto_renew.py --config accounts.json --dry-run
 
 默认规则：
 
-- 免费续期窗口：到期前 `175` 天，可在账户上用 `renew_before_days` 单独覆盖
+- 免费续期窗口：到期前 `175` 天
 - 每周检查一次
 - 只有进入窗口后才会请求续期
 
-## 旧环境变量回退
+## 重新生成 API 凭证
 
-没有 `--config`、也没有 `DNSHE_ACCOUNTS` 时，脚本仍可读这三个环境变量，并当成名为 `default` 的单账户：
+如果你在 DNSHE 后台重新生成了 API 凭据，同步更新 GitHub Secrets 即可：
 
 - `DNSHE_API_KEY`
 - `DNSHE_API_SECRET`
-- `DNSHE_DOMAINS`（一行一个域名）
-
-优先级是：`--config` 文件 > 环境变量 `DNSHE_ACCOUNTS` > 上面这三个旧变量。GitHub Actions 工作流只传入 Secret `DNSHE_ACCOUNTS`。
-
-## 重新生成 API 凭证
-
-如果你在 DNSHE 后台重新生成了 API 凭据，更新 Secret `DNSHE_ACCOUNTS` 里对应账户的 `api_key` 和 `api_secret` 即可。
 
 ## 修改执行时间
 
@@ -143,7 +114,6 @@ python scripts/dnshe_auto_renew.py --config accounts.json --dry-run
 ## 文件说明
 
 - `scripts/dnshe_auto_renew.py`：续期脚本
-- `accounts.example.json`：多账户 JSON 模板，不含真实密钥
 - `.github/workflows/dnshe-auto-renew.yml`：每周 GitHub Actions 工作流
 - `state/domains-state.json`：运行后自动生成的状态文件
 

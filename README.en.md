@@ -20,10 +20,10 @@ Open:
 
 - https://my.dnshe.com
 
-Prepare these two values. You will put them in the account JSON:
+Prepare these two values:
 
-- API Key
-- API Secret
+- `DNSHE_API_KEY`
+- `DNSHE_API_SECRET`
 
 ### Step 1: Import as a Private Repository via GitHub Importer
 
@@ -38,52 +38,30 @@ Prepare these two values. You will put them in the account JSON:
 | `Privacy` | Select `Private` |
 
 3. Click `Begin import` and wait for it to finish (usually tens of seconds to a few minutes)
-4. Once imported, GitHub creates a private repository owned by you. All subsequent Secret and workflow configuration are done on this repo's page.
+4. Once imported, GitHub creates a private repository owned by you. All subsequent Secrets, Variables, and workflow configuration are done on this repo's page.
 
-### Step 2: Add a GitHub Secret
+### Step 2: Add GitHub Secrets and Variables
 
 Go to:
 
 - `Settings -> Secrets and variables -> Actions`
 
-Add this Secret:
+Add these Secrets:
 
-- `DNSHE_ACCOUNTS`
+- `DNSHE_API_KEY`
+- `DNSHE_API_SECRET`
 
-The value is one JSON document and can list multiple accounts. `accounts.example.json` in the repo is the same shape; replace the placeholders with your own credentials.
+Add this Variable:
 
-### Step 3: Configure Accounts and Domains
+- `DNSHE_DOMAINS`
 
-Example `DNSHE_ACCOUNTS` value:
+### Step 3: Configure Domains
 
-```json
-{
-  "accounts": [
-    {
-      "name": "account-a",
-      "api_key": "YOUR_API_KEY",
-      "api_secret": "YOUR_API_SECRET",
-      "domains": ["abc88.cc.cd", "12366.cc.cd"]
-    },
-    {
-      "name": "account-b",
-      "api_key": "YOUR_API_KEY",
-      "api_secret": "YOUR_API_SECRET",
-      "domains": ["444.cc.cd"],
-      "renew_before_days": 175
-    }
-  ]
-}
-```
+`DNSHE_DOMAINS` takes one domain per line:
 
-- `name` must be unique in this config. It is used as the log prefix and the state key.
-- `domains` must be unique globally, including across accounts.
-- `renew_before_days` is optional and defaults to `175`. When set, it overrides the previous value stored in state.
-
-For local debugging, save the same JSON to a file and run:
-
-```bash
-python scripts/dnshe_auto_renew.py --config accounts.json --dry-run
+```text
+abc88.cc.cd
+12366.cc.cd
 ```
 
 ### Step 4: Run the Workflow Manually
@@ -96,17 +74,17 @@ The first run checks the domains and generates `state/domains-state.json`. After
 
 ### Format
 
-Each account's `domains` field is an array. Add an entry for a new domain, remove an entry to delete it:
+One domain per line. Add a line for a new domain, remove a line to delete:
 
-```json
-"domains": ["abc88.cc.cd", "12366.cc.cd", "444.cc.cd"]
+```text
+abc88.cc.cd
+12366.cc.cd
+444.cc.cd
 ```
-
-Add another object to `accounts` for each extra DNSHE account, with that account's own API credentials. A failure in one account does not stop the others. The process exits with code `1` if any account failed.
 
 ### Adding Domains
 
-Simply append new domains to that account's `domains`. The next workflow run will automatically detect new domains, fetch their `created_at` from the DNSHE API, calculate the initial expiration date (`created_at + 365` days), and save the result to `state/domains-state.json`. No manual registration date or expiration date needed. State is nested under `accounts.<name>.domains`. If the repo still has the old flat `domains` state, the script matches those domains into the configured accounts so existing expiration times are kept.
+Simply append new domains to `DNSHE_DOMAINS`. The next workflow run will automatically detect new domains, fetch their `created_at` from the DNSHE API, calculate the initial expiration date (`created_at + 365` days), and save the result to `state/domains-state.json`. No manual registration date or expiration date needed.
 
 ### Why No Manual Expiration Date
 
@@ -118,23 +96,16 @@ Simply append new domains to that account's `domains`. The next workflow run wil
 
 Default behavior:
 
-- Free renewal window: `175` days before expiration, overridable per account with `renew_before_days`
+- Free renewal window: `175` days before expiration
 - Checked once per week
 - Renewal is only requested when a domain enters the renewal window
 
-## Legacy Environment Variable Fallback
+## Regenerating API Credentials
 
-When neither `--config` nor `DNSHE_ACCOUNTS` is set, the script still reads these three environment variables and treats them as a single account named `default`:
+If you regenerate your DNSHE API credentials, simply update the GitHub Secrets:
 
 - `DNSHE_API_KEY`
 - `DNSHE_API_SECRET`
-- `DNSHE_DOMAINS` (one domain per line)
-
-Priority is: `--config` file > `DNSHE_ACCOUNTS` environment variable > the three legacy variables above. The GitHub Actions workflow passes only the `DNSHE_ACCOUNTS` secret.
-
-## Regenerating API Credentials
-
-If you regenerate your DNSHE API credentials, update `api_key` and `api_secret` for that account inside the `DNSHE_ACCOUNTS` secret.
 
 ## Changing the Schedule
 
@@ -143,7 +114,6 @@ Edit the `cron` field in `.github/workflows/dnshe-auto-renew.yml`. Currently run
 ## File Reference
 
 - `scripts/dnshe_auto_renew.py` — Renewal script
-- `accounts.example.json` — Multi-account JSON template, with no real credentials
 - `.github/workflows/dnshe-auto-renew.yml` — Weekly GitHub Actions workflow
 - `state/domains-state.json` — Auto-generated state file
 

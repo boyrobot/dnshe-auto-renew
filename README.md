@@ -10,22 +10,16 @@
   </p>
 </div>
 
-> 只需 3 分钟部署，之后每周自动检查并续期你的 DNSHE 免费域名。
-
 ## 3 分钟部署
 
-### 第 0 步：获取 DNSHE API 凭证
+### 第 0 步：获取 API 凭证
 
-打开：
-
-- https://my.dnshe.com
-
-准备好这两个值：
+在 <https://my.dnshe.com> 拿到这两个值：
 
 - `DNSHE_API_KEY`
 - `DNSHE_API_SECRET`
 
-### 第 1 步：用 GitHub Importer 转成私有仓库
+### 第 1 步：转成你自己的私有仓库
 
 1. 登录 GitHub，打开 <https://github.com/new/import>
 2. 按以下信息填写：
@@ -37,21 +31,19 @@
 | `Repository name` | 你的仓库名，例如 `my-dnshe-auto-renew` |
 | `Privacy` | 选 `Private` |
 
-3. 点击 `Begin import`，等待导入完成（通常几十秒到几分钟）
-4. 导入完成后，GitHub 会生成一个属于你自己的私有仓库，后续的 Secrets、Variables 和 workflow 都在这个仓库里设置
+3. 点击 `Begin import`，等待导入完成
+4. 后续的 Secrets、Variables 和 workflow 都在这个新仓库里设置
 
-### 第 2 步：添加 GitHub Secrets 和 Variable
+### 第 2 步：添加 Secrets 和 Variable
 
-进入：
+进入 `Settings -> Secrets and variables -> Actions`。
 
-- `Settings -> Secrets and variables -> Actions`
-
-添加 Secrets：
+Secrets（两个）：
 
 - `DNSHE_API_KEY`
 - `DNSHE_API_SECRET`
 
-添加 Variable：
+Variable（一个）：
 
 - `DNSHE_DOMAINS`
 
@@ -66,15 +58,13 @@ abc88.cc.cd
 
 ### 第 4 步：手动运行一次
 
-打开 GitHub 的 `Actions`，手动运行 `DNSHE Auto Renew`。
+打开 `Actions`，手动运行 `DNSHE Auto Renew`。
 
-第一次运行会检查域名并生成 `state/domains-state.json`。之后工作流每周自动运行一次。
+之后工作流每周自动运行一次。
 
 ## 域名管理
 
-### 填写格式
-
-一行一个域名，新增就加一行，删除就删一行：
+一行一个域名，新增加一行，删除删一行。新域名在下一次运行时自动生效。
 
 ```text
 abc88.cc.cd
@@ -82,40 +72,41 @@ abc88.cc.cd
 444.cc.cd
 ```
 
-### 新增域名
-
-只需把新域名追加到 `DNSHE_DOMAINS`。下一次 workflow 运行时，会自动发现新域名、从 API 读取 `created_at`，自动计算初始到期时间（`created_at + 365` 天），将结果写入 `state/domains-state.json`。不需要手动填注册时间或到期时间。
-
-### 为什么不用手填到期时间
-
-- 第一次发现域名时，用 `created_at + 365` 天推算初始到期时间
-- 续期成功后，用 API 返回的 `new_expires_at` 更新状态
-- 后续自动滚动计算，不需要每年改日期
-
 ## 续期规则
 
-默认规则：
-
-- 免费续期窗口：到期前 `175` 天
-- 每周检查一次
-- 只有进入窗口后才会请求续期
+- 官方续期窗口为到期前 **180** 天，本工具提前 **175** 天进入判断
+- 每周检查一次，只有进入窗口后才会请求续期
 
 ## 重新生成 API 凭证
 
-如果你在 DNSHE 后台重新生成了 API 凭据，同步更新 GitHub Secrets 即可：
+在 DNSHE 后台重新生成凭证后，同步更新这两个 Secrets：
 
 - `DNSHE_API_KEY`
 - `DNSHE_API_SECRET`
 
+## 与上游同步
+
+`.github/workflows/sync-upstream.yml` 每周一自动把本仓库对齐到上游模板：上游新增、修改的文件会同步过来，上游删除的文件也会跟着删掉。
+
+`state/domains-state.json` 不在同步范围内，它是本仓库自己的到期时间记录。
+
+两点注意：
+
+- 本仓库自己加的文件，下次同步会被删掉。需要保留就加进 `sync-upstream.yml` 的 `PROTECTED_PATHS`（空格分隔）。
+- Secrets 和 Variables 存在仓库设置里，不在文件树内，同步不会动它们。
+
+`.github/workflows/` 默认不同步。想让它一起同步，需要建一个细粒度 PAT（`Contents: Read and write` + `Workflows: Read and write`），存成仓库密钥 `SYNC_TOKEN`。
+
 ## 修改执行时间
 
-编辑 `.github/workflows/dnshe-auto-renew.yml` 中的 `cron` 字段。当前为每周一次，时间使用 UTC。
+默认每周一 **04:23 UTC**。编辑 `.github/workflows/dnshe-auto-renew.yml` 的 `cron` 字段。已配置 `SYNC_TOKEN` 时，还要把该文件加进 `sync-upstream.yml` 的 `PROTECTED_PATHS`，否则下次同步会改回默认值。
 
 ## 文件说明
 
 - `scripts/dnshe_auto_renew.py`：续期脚本
-- `.github/workflows/dnshe-auto-renew.yml`：每周 GitHub Actions 工作流
-- `state/domains-state.json`：运行后自动生成的状态文件
+- `.github/workflows/dnshe-auto-renew.yml`：每周续期工作流
+- `.github/workflows/sync-upstream.yml`：每周从上游模板同步整个仓库
+- `state/domains-state.json`：本仓库的到期时间记录，接口不返回时用它兜底
 
 ## 官方文档
 
